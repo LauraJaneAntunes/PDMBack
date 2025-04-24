@@ -38,8 +38,20 @@ mongoose.connect(url)
 
 // Schema do Mongoose (modelo dos dados)
 var Usuario = new mongoose.Schema({
-    name: String,
-    email: String
+    name: {
+        type: String,
+        required: true,
+    },
+    email: {
+        type: String,
+        required: true,
+        match: /^\S+@\S+\.\S+$/, // validação básica de email
+    },
+    celular: {
+        type: String,
+        required: true,
+        match: /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/, // Regex simples para (xx) xxxxx-xxxx
+    }
 });
 
 // Model baseado no schema acima
@@ -57,8 +69,9 @@ app.get("/", async (req, res) => {
 app.post("/add", async (req, res) => {
     let nome = req.body.name;
     let email = req.body.email;
-    const I = await new RefDoc({ name: nome, email: email });
-    I.save();
+    let celular = req.body.celular;
+    const I = await new RefDoc({ name: nome, email: email, celular: celular });
+    await I.save(); // Adiocionei o await pra arrumar o erro de não avisar que foi adionado
     res.send({ status: "adicionado" });
 });
 
@@ -97,15 +110,6 @@ app.patch('/update/:id', async (req, res) => {
     } else {
         res.send({ erro: 'erro' });
     }
-
-    // Comentário do professor:
-    // if (updatedUser.modifiedCount === 0) {
-    //     return res.status(404).send('User not found or no changes made');
-    // }
-    // res.status(200).send('User updated successfully');
-    // } catch (err) {
-    //     res.status(500).send('Error updating user');
-    // }
 });
 
 // Inicialização do servidor
