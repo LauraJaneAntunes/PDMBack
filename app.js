@@ -26,7 +26,7 @@ app.use(methodOverride('X-Method-Override'));
 app.use(methodOverride('_method'));
 
 // Conexão com o MongoDB
-let url = 'mongodb://localhost:27017/';
+let url = 'mongodb://localhost:27017/agenda';
 
 mongoose.connect(url)
     .then(() => {
@@ -36,23 +36,28 @@ mongoose.connect(url)
         console.log(e);
     });
 
-// Schema do Mongoose (modelo dos dados)
-var Usuario = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-    },
-    email: {
-        type: String,
-        required: true,
-        match: /^\S+@\S+\.\S+$/, // validação básica de email
-    },
-    celular: {
-        type: String,
-        required: true,
-        match: /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/, // Regex simples para (xx) xxxxx-xxxx
-    }
-});
+    // Schema do Mongoose (modelo dos dados) com as validações
+    var Usuario = new mongoose.Schema({
+        name: {
+            type: String,
+            required: [true, 'Nome é obrigatório'],
+            trim: true, // Garante que não haja espaços em branco no início ou no final
+            minlength: [3, 'Nome deve ter pelo menos 3 caracteres'],
+        },
+        email: {
+            type: String,
+            required: [true, 'Email é obrigatório'],
+            trim: true,
+            match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Email inválido'],
+        },
+        celular: {
+            type: String,
+            required: [true, 'Celular é obrigatório'],
+            trim: true,
+            match: [/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/, 'Celular inválido'],
+        }
+    });
+    
 
 // Model baseado no schema acima
 const RefDoc = new mongoose.model('Usuarios', Usuario);
@@ -70,9 +75,18 @@ app.post("/add", async (req, res) => {
     let nome = req.body.name;
     let email = req.body.email;
     let celular = req.body.celular;
-    const I = await new RefDoc({ name: nome, email: email, celular: celular });
-    await I.save(); // Adiocionei o await pra arrumar o erro de não avisar que foi adionado
-    res.send({ status: "adicionado" });
+    try {
+        const I = await new RefDoc({ name: nome, email: email, celular: celular });
+        await I.save(); // Adiocionei o await pra arrumar o erro de não avisar que foi adionado
+        res.send({ status: "adicionado" });
+    // Validação do Back. Se o usuário tentar cadastrar com um e-mail ou celular inválido receberá um erro.   
+    } catch (err) {
+        if (err.name === 'ValidationError') {
+            const errors = Object.values(err.errors).map(e => e.message);
+            return res.status(400).send({ erro: errors.join(', ') });
+        }
+        res.status(500).send({ erro: 'Erro ao adicionar usuário' });
+    }
 });
 
 // Rota para deletar um usuário pelo ID
@@ -104,11 +118,28 @@ app.patch('/update/:id', async (req, res) => {
     const { id } = req.params;
     const update = req.body;
 
-    const updatedUser = await RefDoc.updateOne({ _id: id }, update);
-    if (updatedUser) {
-        res.send({ status: "alterado" });
-    } else {
-        res.send({ erro: 'erro' });
+    // Validações do Backend. Validar se o nome tem pelo menos 3 caracteres, celular e email são válidos.
+    if (name && typeof name === 'string' && name.trim().length < 3) {
+        return res.status(400).send({ erro: 'Nome deve ter pelo menos 3 caracteres' });
+    }
+    
+    if (celular && !/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(celular)) {
+        return res.status(400).send({ erro: 'Celular inválido' });
+    }
+
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+        return res.status(400).send({ erro: 'Email inválido' });
+    }
+
+    try {
+        const updatedUser = await RefDoc.updateOne({ _id: id }, update);
+            if (updatedUser) {
+                res.send({ status: "alterado" });
+            } else {
+                res.send({ erro: 'erro' });
+            }
+        } catch (err) {
+    res.status(500).send({ erro: 'Erro ao atualizar usuário' });
     }
 });
 
