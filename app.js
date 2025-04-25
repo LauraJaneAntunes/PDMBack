@@ -75,8 +75,10 @@ app.post("/add", async (req, res) => {
     let nome = req.body.name;
     let email = req.body.email;
     let celular = req.body.celular;
+    
     try {
         const I = await new RefDoc({ name: nome, email: email, celular: celular });
+        await I.validate(); // Adicionei o await para garantir que a validação seja concluída antes de salvar
         await I.save(); // Adiocionei o await pra arrumar o erro de não avisar que foi adionado
         res.send({ status: "adicionado" });
     // Validação do Back. Se o usuário tentar cadastrar com um e-mail ou celular inválido receberá um erro.   
@@ -119,22 +121,23 @@ app.patch('/update/:id', async (req, res) => {
     const update = req.body;
 
     // Validações do Backend. Validar se o nome tem pelo menos 3 caracteres, celular e email são válidos.
-    if (name && typeof name === 'string' && name.trim().length < 3) {
+    if (update.name && typeof update.name === 'string' && update.name.trim().length < 3) {
         return res.status(400).send({ erro: 'Nome deve ter pelo menos 3 caracteres' });
     }
     
-    if (celular && !/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(celular)) {
+    if (update.celular && !/^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/.test(update.celular)) {
         return res.status(400).send({ erro: 'Celular inválido' });
     }
 
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    if (update.email && !/^\S+@\S+\.\S+$/.test(update.email)) {
         return res.status(400).send({ erro: 'Email inválido' });
     }
 
     try {
-        const updatedUser = await RefDoc.updateOne({ _id: id }, update);
+        // Precisei alterar pra findByIdAndUpdate para usar a validação do Mongoose
+        const updatedUser = await RefDoc.findByIdAndUpdate({ _id: id }, update, { new: true, runValidators: true });
             if (updatedUser) {
-                res.send({ status: "alterado" });
+                res.send({ status: "alterado", user: updatedUser });
             } else {
                 res.send({ erro: 'erro' });
             }
